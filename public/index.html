@@ -5,289 +5,561 @@
     <title>P2P Polling con Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+
 </head>
 
 <body class="bg-gray-100 text-gray-800">
-    <div class="container mx-auto p-6 max-w-4xl flex flex-col h-screen">
-        <!-- Chat principale -->
-        <div class="flex-1 bg-white p-6 rounded-lg shadow-md flex flex-col">
-            <h2 class="text-2xl font-semibold text-center mb-4">💬 Chat P2P</h2>
-            <div id="chat-box" class="border border-gray-300 flex-1 overflow-y-auto p-3 rounded-lg bg-gray-50 text-gray-700"></div>
-            <div class="flex mt-4 gap-2">
-                <input type="text" id="chat-input" class="flex-1 border p-2 rounded-lg" placeholder="Scrivi un messaggio...">
-                <button onclick="sendChatMessage()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                    Invia
-                </button>
-            </div>
-        </div>
+    <div class="bg-white p-4 rounded-lg shadow-md mt-6">
 
-        <!-- Informazioni laterali -->
-        <div class="grid grid-cols-2 gap-4 mt-6">
-            <div class="bg-white p-4 rounded-lg shadow-md">
-                <h3 class="text-lg font-medium">🔗 Connessione</h3>
-                <p>Il tuo Peer ID: <span id="my-peer-id" class="font-bold text-blue-600">---</span></p>
-                <p>Connesso a: <span id="connected-peers" class="text-gray-600">---</span></p> <!-- ✅ Fix aggiunto -->
-                <p>Peer Connessi: <span id="peer-count" class="font-bold">0</span></p>
-                <div class="mt-4 flex gap-2">
-                    <input type="text" id="peer-id-input" class="flex-1 border p-2 rounded-lg" placeholder="ID Peer">
-                    <button onclick="connectToPeerButton()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                        Connetti
+        <div class="container mx-auto p-6 max-w-4xl flex flex-col h-screen">
+            <!-- Chat principale -->
+            <div class="flex-1 bg-white p-6 rounded-lg shadow-md flex flex-col">
+                <h2 class="text-2xl font-semibold text-center mb-4">💬 Chat P2P</h2>
+                <div id="youtube-container" class="hidden bg-white p-4 rounded-lg shadow-md mt-4">
+                    <h3 class="text-lg font-medium">🎬 Video Condiviso</h3>
+                    <div id="player"></div>
+                </div>
+                <!-- Timer -->
+
+                <div id="timer-container" class="hidden bg-white p-4 rounded-lg shadow-md mt-4">
+                    <span id="timer-message" class="text-md text-gray-700">Timer in corso...</span>
+                    <span id="timer-display" class="text-xl font-bold text-red-600">--:--</span>
+                </div>
+                <div id="drawing-container" class="hidden bg-white p-4 rounded-lg shadow-md mt-4">
+                    <h3 class="text-lg font-medium">🎨 Disegno Condiviso</h3>
+                    <canvas id="drawing-board" width="400" height="300" class="border border-gray-300"></canvas>
+                    <div class="mt-2 flex gap-2">
+                        <input type="color" id="color-picker" value="#000000">
+                        <button onclick="clearCanvas()"
+                            class="bg-red-600 text-white px-4 py-2 rounded-lg">Cancella</button>
+                    </div>
+                </div>
+                <div id="chat-box"
+                    class="border border-gray-300 flex-1 overflow-y-auto p-3 rounded-lg bg-gray-50 text-gray-700"></div>
+                <div class="flex mt-4 gap-2">
+                    <input type="text" id="chat-input" class="flex-1 border p-2 rounded-lg"
+                        placeholder="Scrivi un messaggio...">
+                    <button onclick="sendChatMessage()"
+                        class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                        Invia
                     </button>
                 </div>
-                <p class="mt-4 text-sm text-gray-700">
-                    Condividi il link:
-                    <input type="text" id="share-link" class="border p-2 w-full rounded-lg text-gray-600" readonly>
+            </div>
+
+            <!-- Informazioni laterali -->
+            <div class="grid grid-cols-2 gap-4 mt-6">
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium">🔗 Connessione</h3>
+                    <p>Il tuo Peer ID: <span id="my-peer-id" class="font-bold text-blue-600">---</span></p>
+                    <p>Connesso a: <span id="connected-peers" class="text-gray-600">---</span></p>
+                    <!-- ✅ Fix aggiunto -->
+                    <p>Peer Connessi: <span id="peer-count" class="font-bold">0</span></p>
+                    <div class="mt-4 flex gap-2">
+                        <input type="text" id="peer-id-input" class="flex-1 border p-2 rounded-lg"
+                            placeholder="ID Peer">
+                        <button onclick="connectToPeerButton()"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Connetti
+                        </button>
+                    </div>
+                    <p class="mt-4 text-sm text-gray-700">
+                        Condividi il link:
+                        <input type="text" id="share-link" class="border p-2 w-full rounded-lg text-gray-600" readonly>
+                    </p>
+                </div>
+
+
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium">📡 Peer Connessi in Chat</h3>
+                    <ul id="discovered-peers" class="text-gray-700 list-disc pl-4"></ul>
+                </div>
+            </div>
+
+            <!-- Descrizione funzionamento -->
+            <div class="bg-white p-6 rounded-lg shadow-md mt-6">
+                <h2 class="text-xl font-semibold mb-4">🔗 Chat Peer-to-Peer: Come Funziona</h2>
+                <p class="text-gray-700">
+                    Questa chat utilizza un'architettura <strong>peer-to-peer</strong>, dove gli utenti si connettono
+                    direttamente tra loro senza un server centrale.
+                    Ogni peer ottiene un <strong>ID univoco</strong> e può scambiare messaggi con altri peer attivi.
+                    Il sistema aggiorna automaticamente le connessioni e propaga i messaggi tra tutti i partecipanti.
+                    Gli utenti possono scoprire nuovi peer condividendo il proprio ID o interrogando un tracker
+                    pubblico.
                 </p>
             </div>
-            
-
-            <div class="bg-white p-4 rounded-lg shadow-md">
-                <h3 class="text-lg font-medium">📡 Peer Connessi in Chat</h3>
-                <ul id="discovered-peers" class="text-gray-700 list-disc pl-4"></ul>
-            </div>
         </div>
 
-        <!-- Descrizione funzionamento -->
-        <div class="bg-white p-6 rounded-lg shadow-md mt-6">
-            <h2 class="text-xl font-semibold mb-4">🔗 Chat Peer-to-Peer: Come Funziona</h2>
-            <p class="text-gray-700">
-                Questa chat utilizza un'architettura <strong>peer-to-peer</strong>, dove gli utenti si connettono direttamente tra loro senza un server centrale.  
-                Ogni peer ottiene un <strong>ID univoco</strong> e può scambiare messaggi con altri peer attivi.  
-                Il sistema aggiorna automaticamente le connessioni e propaga i messaggi tra tutti i partecipanti.  
-                Gli utenti possono scoprire nuovi peer condividendo il proprio ID o interrogando un tracker pubblico.  
-            </p>
-        </div>
-    </div>
+        <script>
+            function generateReadableID() {
+                const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                // Generate a random year from 1900 to 2000
+                let randomYear = Math.floor(Math.random() * (2000 - 1900 + 1)) + 1900;
 
-    <script>
-        function generateReadableID() {
-            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            // Generate a random year from 1900 to 2000
-            let randomYear = Math.floor(Math.random() * (2000 - 1900 + 1)) + 1900;
-
-            return `${randomYear}`;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const peerID = generateReadableID();
-        const peer = new Peer(peerID);
-        let connections = new Map();
-        let peerTimestamps = new Map();
-        let chatHistory = [];
-        const heartbeatInterval = 1000;
-        const disconnectThreshold = 2000;
-
-        peer.on("open", id => {
-            console.log("Peer aperto con ID:", id);
-            document.getElementById("my-peer-id").innerText = id;
-            document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
-
-            const remotePeerId = urlParams.get('peer');
-            if (remotePeerId && remotePeerId !== id) {
-                setTimeout(() => connectToPeer(remotePeerId), 1000);
+                return `${randomYear}`;
             }
-            startHeartbeat();
-        });
 
-        function connectToPeerButton() {
-            const peerId = document.getElementById("peer-id-input").value.trim();
-            connectToPeer(peerId);
-        }
+            const urlParams = new URLSearchParams(window.location.search);
+            const peerID = generateReadableID();
+            const peer = new Peer(peerID);
+            let connections = new Map();
+            let peerTimestamps = new Map();
+            let chatHistory = [];
+            const heartbeatInterval = 1000;
+            const disconnectThreshold = 2000;
 
-        function connectToPeer(peerId) {
+            peer.on("open", id => {
+                console.log("Peer aperto con ID:", id);
+                document.getElementById("my-peer-id").innerText = id;
+                document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
 
-            if (connections.has(peerId)) return;
-            console.log(`Tentativo di connessione a ${peerId}`);
-            const conn = peer.connect(peerId);
-
-            conn.on("open", () => {
-                console.log(`Connesso a ${peerId}`);
-                connections.set(peerId, conn);
-                peerTimestamps.set(peerId, Date.now());
-                updateConnectedPeers();
-                conn.on("data", receiveData);
-                conn.on("close", () => handlePeerDisconnect(peerId));
-
-                // Request chat history (pass the sender ID)
-                conn.send({ type: "request-chat-history", sender: peerID });
-
-                // Request peer list
-                conn.send({ type: "request-peer-list" });
-            });
-
-
-            conn.on("error", (err) => {
-                console.error(`Errore con peer ${peerId}:`, err);
-                handlePeerDisconnect(peerId);
-            });
-        }
-
-        function handlePeerDisconnect(peerId) {
-            if (connections.has(peerId)) {
-                console.log(`Peer ${peerId} disconnesso.`);
-                connections.delete(peerId);
-                peerTimestamps.delete(peerId);
-                updateConnectedPeers();
-                appendCleanMessage(`${peerId} si è disconnesso.`);
-            }
-        }
-
-        function propagatePeerList() {
-            const peerList = Array.from(connections.keys());
-            connections.forEach(conn => {
-                conn.send({ type: "peer-list", peers: peerList });
-            });
-        }
-
-        function updateConnectedPeers() {
-            document.getElementById("connected-peers").innerText = Array.from(connections.keys()).join(", ") || "---";
-            document.getElementById("peer-count").innerText = connections.size;
-            updateDiscoveredPeers();
-        }
-
-        function updateDiscoveredPeers() {
-            let listElement = document.getElementById("discovered-peers");
-            listElement.innerHTML = "";
-            connections.forEach((_, peerId) => {
-                listElement.innerHTML += `<li>${peerId}</li>`;
-            });
-        }
-
-        function sendChatMessage() {
-            const message = document.getElementById("chat-input").value.trim();
-            if (!message) return;
-
-            const timestamp = Date.now(); // Usa timestamp per identificare il messaggio
-            const msgData = { type: "chat", message, sender: peerID, timestamp };
-
-            chatHistory.push(msgData);
-            broadcastData(msgData);
-
-            document.getElementById("chat-input").value = "";
-        }
-
-
-        function appendCleanMessage(msg) {
-            const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML += `<p style="color: gray;"><em>${msg}</em></p>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-
-        function broadcastData(data) {
-            connections.forEach(conn => conn.send(data));
-        }
-
-        const receivedMessages = new Set(); // Memorizza i messaggi ricevuti per evitare duplicati
-
-        function receiveData(data) {
-            if (data.type === "chat") {
-                const messageHash = `${data.sender}-${data.timestamp}`;
-
-                if (!receivedMessages.has(messageHash)) {
-                    receivedMessages.add(messageHash);
-                    chatHistory.push(data);
-                    appendMessage(data);
-                    broadcastData(data);
+                const remotePeerId = urlParams.get('peer');
+                if (remotePeerId && remotePeerId !== id) {
+                    setTimeout(() => connectToPeer(remotePeerId), 1000);
                 }
-            } else if (data.type === "chat-history") {
-                console.log(`📜 Ricevuta cronologia chat da ${data.sender}`);
-                data.history.forEach(msg => {
-                    const messageHash = `${msg.sender}-${msg.timestamp}`;
+                startHeartbeat();
+            });
+
+            function connectToPeerButton() {
+                const peerId = document.getElementById("peer-id-input").value.trim();
+                connectToPeer(peerId);
+            }
+
+            function connectToPeer(peerId) {
+
+                if (connections.has(peerId)) return;
+                console.log(`Tentativo di connessione a ${peerId}`);
+                const conn = peer.connect(peerId);
+
+                conn.on("open", () => {
+                    console.log(`Connesso a ${peerId}`);
+                    connections.set(peerId, conn);
+                    peerTimestamps.set(peerId, Date.now());
+                    updateConnectedPeers();
+                    conn.on("data", receiveData);
+                    conn.on("close", () => handlePeerDisconnect(peerId));
+
+                    // Request chat history (pass the sender ID)
+                    conn.send({ type: "request-chat-history", sender: peerID });
+
+                    // Request peer list
+                    conn.send({ type: "request-peer-list" });
+                });
+
+
+                conn.on("error", (err) => {
+                    console.error(`Errore con peer ${peerId}:`, err);
+                    handlePeerDisconnect(peerId);
+                });
+            }
+
+            function handlePeerDisconnect(peerId) {
+                if (connections.has(peerId)) {
+                    console.log(`Peer ${peerId} disconnesso.`);
+                    connections.delete(peerId);
+                    peerTimestamps.delete(peerId);
+                    updateConnectedPeers();
+                    appendCleanMessage(`${peerId} si è disconnesso.`);
+                }
+            }
+
+            function propagatePeerList() {
+                const peerList = Array.from(connections.keys());
+                connections.forEach(conn => {
+                    conn.send({ type: "peer-list", peers: peerList });
+                });
+            }
+
+            function updateConnectedPeers() {
+                document.getElementById("connected-peers").innerText = Array.from(connections.keys()).join(", ") || "---";
+                document.getElementById("peer-count").innerText = connections.size;
+                updateDiscoveredPeers();
+            }
+
+            function updateDiscoveredPeers() {
+                let listElement = document.getElementById("discovered-peers");
+                listElement.innerHTML = "";
+                connections.forEach((_, peerId) => {
+                    listElement.innerHTML += `<li>${peerId}</li>`;
+                });
+            }
+
+            let countdownInterval;
+            function startTimer(targetTime, timerText) {
+                clearInterval(countdownInterval); // Resetta eventuali timer attivi
+
+                const timerContainer = document.getElementById("timer-container");
+                const timerDisplay = document.getElementById("timer-display");
+                const timerMessage = document.getElementById("timer-message");
+
+                timerContainer.classList.remove("hidden");
+                timerMessage.innerText = `📌 ${timerText}`;
+
+                function updateTimer() {
+                    const now = new Date().getTime();
+                    const remaining = targetTime - now;
+
+                    if (remaining <= 0) {
+                        clearInterval(countdownInterval);
+                        timerDisplay.innerText = "⏳ Tempo scaduto!";
+                        lastTimerState = null; // Timer terminato, resetta lo stato globale
+                        return;
+                    }
+
+                    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+                    timerDisplay.innerText = `⏳ ${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+                }
+
+                updateTimer();
+                countdownInterval = setInterval(updateTimer, 1000);
+
+                // Salva lo stato del timer per nuovi peer
+                lastTimerState = { targetTime, timerText };
+            }
+
+
+            function sendChatMessage() {
+                const inputElement = document.getElementById("chat-input");
+                const message = inputElement.value.trim();
+                if (!message) return;
+
+                const timestamp = Date.now();
+                let msgData = { type: "chat", message, sender: peerID, timestamp };
+                if (message.startsWith("/draw")) {
+                    document.getElementById("drawing-container").classList.remove("hidden");
+
+                    // Invia il comando ai peer per attivare la lavagna
+                    msgData = { type: "draw", sender: peerID, timestamp };
+                }
+                // Controlla se il messaggio è un comando per YouTube
+                if (message.startsWith("/youtube ")) {
+                    const videoId = message.split(" ")[1]; // Estrai l'ID del video
+                    if (videoId) {
+                        msgData = { type: "video-load", videoId, sender: peerID, timestamp };
+                        loadVideo(videoId); // Carica subito il video per chi lo invia
+                    }
+                }
+
+                if (message.startsWith("/timer ")) {
+                    const args = message.split(" ");
+                    if (args.length < 2) {
+                        appendCleanMessage("⏳ Formato errato! Usa: /timer HH:MM Testo opzionale");
+                        return;
+                    }
+
+                    const timeString = args[1]; // Estrae l'orario HH:MM
+                    const timerText = args.slice(2).join(" ") || "Timer in corso"; // Il resto del messaggio è il testo
+
+                    if (!/^\d{2}:\d{2}$/.test(timeString)) {
+                        appendCleanMessage("⏳ Formato orario non valido! Usa: /timer HH:MM Testo opzionale");
+                        return;
+                    }
+
+                    const [hours, minutes] = timeString.split(":").map(Number);
+                    const targetTime = new Date();
+                    targetTime.setHours(hours, minutes, 0, 0); // Imposta l'orario di fine
+
+                    if (targetTime < new Date()) {
+                        appendCleanMessage("⏳ Orario già passato, scegli un orario futuro!");
+                        return;
+                    }
+
+                    msgData = {
+                        type: "start-timer",
+                        targetTime: targetTime.getTime(),
+                        timerText,
+                        sender: peerID,
+                        timestamp
+                    };
+
+                    startTimer(targetTime.getTime(), timerText); // Avvia il timer per chi lo ha inviato
+                }
+                if (message.startsWith("/draw")) {
+                    // Mostra la lavagna per chi invia il comando
+                    document.getElementById("drawing-container").classList.remove("hidden");
+
+                    // Invia il comando ai peer per attivare la lavagna
+                    msgData = { type: "enable-draw", sender: peerID, timestamp };
+                }
+
+                chatHistory.push(msgData);
+                broadcastData(msgData);
+
+                inputElement.value = "";
+            }
+
+
+
+            function appendCleanMessage(msg) {
+                const chatBox = document.getElementById("chat-box");
+                chatBox.innerHTML += `<p style="color: gray;"><em>${msg}</em></p>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+
+            function broadcastData(data) {
+                connections.forEach(conn => conn.send(data));
+            }
+
+            const receivedMessages = new Set(); // Memorizza i messaggi ricevuti per evitare duplicati
+
+            let player;
+            let lastVideoId = null;
+
+            // Inizializza il player di YouTube
+            function onYouTubeIframeAPIReady() {
+                player = new YT.Player("player", {
+                    height: "315",
+                    width: "560",
+                    videoId: videoId,
+                    playerVars: { "autoplay": 0, "controls": 1 },
+                    events: {
+                        "onStateChange": onPlayerStateChange
+                    }
+                });
+            }
+
+            // Inizializza il player quando richiesto
+            function loadVideo(videoId) {
+                lastVideoId = videoId;
+                document.getElementById("youtube-container").classList.remove("hidden");
+
+                if (player) {
+                    player.loadVideoById(videoId);
+                } else {
+                    player = new YT.Player("player", {
+                        height: "315",
+                        width: "560",
+                        videoId: videoId,
+                        playerVars: { "autoplay": 1, "controls": 1 },
+                        events: { "onStateChange": onPlayerStateChange }
+                    });
+                }
+            }
+
+            // Sincronizza gli eventi di riproduzione tra i peer
+            function onPlayerStateChange(event) {
+                const currentTime = player.getCurrentTime();
+
+                if (event.data == YT.PlayerState.PLAYING) {
+                    broadcastData({ type: "video-play", time: currentTime });
+                } else if (event.data == YT.PlayerState.PAUSED) {
+                    broadcastData({ type: "video-pause", time: currentTime });
+                }
+            }
+
+            // Canvas draw
+
+            const canvas = document.getElementById("drawing-board");
+            const ctx = canvas.getContext("2d");
+            let drawing = false;
+            let color = "#000000";
+
+            document.getElementById("color-picker").addEventListener("change", (e) => {
+                color = e.target.value;
+            });
+
+            // Avvia il disegno
+            canvas.addEventListener("mousedown", () => (drawing = true));
+            canvas.addEventListener("mouseup", () => (drawing = false));
+            canvas.addEventListener("mouseleave", () => (drawing = false));
+
+            canvas.addEventListener("mousemove", (event) => {
+                if (!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                // Disegna sul proprio canvas
+                draw(x, y, color);
+
+                // Invia il tratto agli altri peer
+                broadcastData({ type: "draw-stroke", x, y, color });
+            });
+
+
+            // Funzione per disegnare
+            function draw(x, y, color) {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Cancella tutto
+            function clearCanvas() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                broadcastData({ type: "clear" });
+            }
+
+
+
+            function receiveData(data) {
+                if (data.type === "chat-history") {
+                    console.log(`📜 Ricevuta cronologia chat da ${data.sender}`);
+
+                    data.history.forEach(msg => {
+                        const messageHash = `${msg.sender}-${msg.timestamp}`;
+
+                        if (!receivedMessages.has(messageHash)) {
+                            receivedMessages.add(messageHash);
+                            chatHistory.push(msg);
+                            appendMessage(msg);
+
+                            // ✅ Controlla se il messaggio è un start-timer e avvia il timer
+                            if (msg.type === "start-timer") {
+                                console.log("🕒 Recupero timer dal backup:", msg);
+                                startTimer(Number(msg.targetTime), msg.timerText);
+                            }
+                        }
+                    });
+                }
+                if (data.type === "start-timer") {
+                    console.log('STARTING TIMER')
+                    if (!data.targetTime || isNaN(data.targetTime)) {
+                        console.error("Errore: targetTime ricevuto è invalido!", data.targetTime);
+                        return;
+                    }
+
+                    startTimer(Number(data.targetTime), data.timerText);
+                }
+
+                if (data.type === "enable-draw") {
+                    document.getElementById("drawing-container").classList.remove("hidden");
+                } else if (data.type === "draw-stroke") {
+                    draw(data.x, data.y, data.color);
+                } else if (data.type === "clear") {
+                    clearCanvas();
+                }
+                if (data.type === "draw") {
+                    document.getElementById("drawing-container").classList.remove("hidden");
+                } else if (data.type === "draw-stroke") {
+                    draw(data.x, data.y, data.color);  // Disegna il tratto ricevuto
+                } else if (data.type === "clear") {
+                    clearCanvas();
+                }
+
+                if (data.type === "video-load") {
+                    loadVideo(data.videoId);
+                } else if (data.type === "video-play") {
+                    player.seekTo(data.time, true);
+                    player.playVideo();
+                } else if (data.type === "video-pause") {
+                    player.seekTo(data.time, true);
+                    player.pauseVideo();
+                }
+                if (data.type === "chat") {
+                    const messageHash = `${data.sender}-${data.timestamp}`;
+
                     if (!receivedMessages.has(messageHash)) {
                         receivedMessages.add(messageHash);
-                        chatHistory.push(msg);
-                        appendMessage(msg);
+                        chatHistory.push(data);
+                        appendMessage(data);
+                        broadcastData(data);
                     }
-                });
-            } else if (data.type === "request-chat-history") {
-                console.log(`📤 Inviando cronologia chat a ${data.sender}`);
-                connections.get(data.sender)?.send({ type: "chat-history", history: chatHistory, sender: peerID });
-            } else if (data.type === "new-peer-connected") {
-                console.log(`✅ Peer connesso: ${data.peerId}`);
-                const messageHash = `connection-${data.peerId}`;
+                } else if (data.type === "chat-history") {
+                    console.log(`📜 Ricevuta cronologia chat da ${data.sender}`);
+                    data.history.forEach(msg => {
+                        const messageHash = `${msg.sender}-${msg.timestamp}`;
+                        if (!receivedMessages.has(messageHash)) {
+                            receivedMessages.add(messageHash);
+                            chatHistory.push(msg);
+                            appendMessage(msg);
+                        }
+                    });
+                } else if (data.type === "request-chat-history") {
+                    console.log(`📤 Inviando cronologia chat a ${data.sender}`);
+                    connections.get(data.sender)?.send({ type: "chat-history", history: chatHistory, sender: peerID });
+                } else if (data.type === "new-peer-connected") {
+                    console.log(`✅ Peer connesso: ${data.peerId}`);
+                    const messageHash = `connection-${data.peerId}`;
 
-                if (!receivedMessages.has(messageHash)) {
-                    receivedMessages.add(messageHash);
-                    chatHistory.push(data);
-                    appendMessage(data);
+                    if (!receivedMessages.has(messageHash)) {
+                        receivedMessages.add(messageHash);
+                        chatHistory.push(data);
+                        appendMessage(data);
 
-                    // Ensure the event propagates correctly
-                    broadcastData(data);
+                        // Ensure the event propagates correctly
+                        broadcastData(data);
+                    }
+                } else if (data.type === "peer-list") {
+                    data.peers.forEach(peerId => {
+                        if (!connections.has(peerId) && peerId !== peerID) {
+                            connectToPeer(peerId);
+                        }
+                    });
+                } else if (data.type === "request-peer-list") {
+                    propagatePeerList();
+                } else if (data.type === "heartbeat") {
+                    peerTimestamps.set(data.peerId, Date.now());
                 }
-            } else if (data.type === "peer-list") {
-                data.peers.forEach(peerId => {
-                    if (!connections.has(peerId) && peerId !== peerID) {
-                        connectToPeer(peerId);
-                    }
-                });
-            } else if (data.type === "request-peer-list") {
-                propagatePeerList();
-            } else if (data.type === "heartbeat") {
-                peerTimestamps.set(data.peerId, Date.now());
-            }
-        }
-
-
-        function startHeartbeat() {
-            setInterval(() => {
-                broadcastData({ type: "heartbeat", peerId: peerID });
-
-                const now = Date.now();
-                peerTimestamps.forEach((lastSeen, peerId) => {
-                    if (now - lastSeen > disconnectThreshold) {
-                        handlePeerDisconnect(peerId);
-                    }
-                });
-            }, heartbeatInterval);
-        }
-
-        function appendMessage(data) {
-            const chatBox = document.getElementById("chat-box");
-            const timestamp = new Date(data.timestamp).toLocaleTimeString();
-
-            if (data.type === "new-peer-connected") {
-                // Show system message for new peer connection
-                // chatBox.innerHTML += `<p style="color: gray;"><em>🔗 ${data.peerId} si è unito alla chat.</em></p>`;
-            } else {
-                // Regular chat message
-                chatBox.innerHTML += `<p>[${timestamp}] <strong>${data.sender}:</strong> ${data.message}</p>`;
             }
 
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
 
+            function startHeartbeat() {
+                setInterval(() => {
+                    broadcastData({ type: "heartbeat", peerId: peerID });
 
+                    const now = Date.now();
+                    peerTimestamps.forEach((lastSeen, peerId) => {
+                        if (now - lastSeen > disconnectThreshold) {
+                            handlePeerDisconnect(peerId);
+                        }
+                    });
+                }, heartbeatInterval);
+            }
 
+            function appendMessage(data) {
+                const chatBox = document.getElementById("chat-box");
+                const timestamp = new Date(data.timestamp).toLocaleTimeString();
 
-        peer.on("connection", conn => {
-            console.log(`🔗 Nuova connessione da ${conn.peer}`);
-            connections.set(conn.peer, conn);
-            peerTimestamps.set(conn.peer, Date.now());
-            updateConnectedPeers();
-
-            conn.on("data", receiveData);
-            conn.on("close", () => handlePeerDisconnect(conn.peer));
-
-            // Send chat history to the newly connected peer
-            conn.send({ type: "chat-history", history: chatHistory, sender: peerID });
-
-            // Notify the new peer of all previously connected peers
-            connections.forEach((existingConn, existingPeerId) => {
-                if (existingPeerId !== conn.peer) {
-                    conn.send({ type: "new-peer-connected", peerId: existingPeerId, sender: peerID, timestamp: Date.now() });
+                if (data.type === "new-peer-connected") {
+                    // Show system message for new peer connection
+                    // chatBox.innerHTML += `<p style="color: gray;"><em>🔗 ${data.peerId} si è unito alla chat.</em></p>`;
+                } else {
+                    // Regular chat message
+                    chatBox.innerHTML += `<p>[${timestamp}] <strong>${data.sender}:</strong> ${data.message}</p>`;
                 }
+
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+
+
+
+            peer.on("connection", conn => {
+                console.log(`🔗 Nuova connessione da ${conn.peer}`);
+                connections.set(conn.peer, conn);
+                peerTimestamps.set(conn.peer, Date.now());
+                updateConnectedPeers();
+                if (lastVideoId) {
+                    conn.send({ type: "video-load", videoId: lastVideoId, sender: peerID, timestamp: Date.now() });
+                }
+                conn.on("data", receiveData);
+                conn.on("close", () => handlePeerDisconnect(conn.peer));
+
+                // Send chat history to the newly connected peer
+                conn.send({ type: "chat-history", history: chatHistory, sender: peerID });
+                if (lastTimerState) {
+                    conn.send({ type: "start-timer", targetTime: lastTimerState.targetTime, timerText: lastTimerState.timerText });
+                }
+                // Notify the new peer of all previously connected peers
+                connections.forEach((existingConn, existingPeerId) => {
+                    if (existingPeerId !== conn.peer) {
+                        conn.send({ type: "new-peer-connected", peerId: existingPeerId, sender: peerID, timestamp: Date.now() });
+                    }
+                });
+
+                // Notify all existing peers about the new connection
+                const connectionMessage = { type: "new-peer-connected", peerId: conn.peer, sender: peerID, timestamp: Date.now() };
+                chatHistory.push(connectionMessage); // Store in chat history
+                broadcastData(connectionMessage); // Send to all peers immediately
             });
 
-            // Notify all existing peers about the new connection
-            const connectionMessage = { type: "new-peer-connected", peerId: conn.peer, sender: peerID, timestamp: Date.now() };
-            chatHistory.push(connectionMessage); // Store in chat history
-            broadcastData(connectionMessage); // Send to all peers immediately
-        });
 
 
-
-    </script>
+        </script>
 </body>
 
 </html>
