@@ -66,9 +66,13 @@
                 conn.on("data", receiveData);
                 conn.on("close", () => handlePeerDisconnect(peerId));
 
-                // Richiedi la lista dei peer
+                // Request chat history (pass the sender ID)
+                conn.send({ type: "request-chat-history", sender: peerID });
+
+                // Request peer list
                 conn.send({ type: "request-peer-list" });
             });
+
 
             conn.on("error", (err) => {
                 console.error(`Errore con peer ${peerId}:`, err);
@@ -137,13 +141,27 @@
             if (data.type === "chat") {
                 const messageHash = `${data.sender}-${data.timestamp}`;
 
-                // Evita di processare il messaggio se già ricevuto
                 if (!receivedMessages.has(messageHash)) {
                     receivedMessages.add(messageHash);
                     chatHistory.push(data);
                     appendMessage(data);
-                    broadcastData(data); // Propaga il messaggio ad altri peer solo se non duplicato
+                    broadcastData(data);
                 }
+            } else if (data.type === "chat-history") {
+                // Load past messages for a newly connected peer
+                console.log(`Ricevuta cronologia chat da ${data.sender}`);
+                data.history.forEach(msg => {
+                    const messageHash = `${msg.sender}-${msg.timestamp}`;
+                    if (!receivedMessages.has(messageHash)) {
+                        receivedMessages.add(messageHash);
+                        chatHistory.push(msg);
+                        appendMessage(msg);
+                    }
+                });
+            } else if (data.type === "request-chat-history") {
+                // Send chat history back to the requesting peer
+                console.log(`Inviando cronologia chat a ${data.sender}`);
+                connections.get(data.sender)?.send({ type: "chat-history", history: chatHistory, sender: peerID });
             } else if (data.type === "peer-list") {
                 data.peers.forEach(peerId => {
                     if (!connections.has(peerId) && peerId !== peerID) {
@@ -156,7 +174,6 @@
                 peerTimestamps.set(data.peerId, Date.now());
             }
         }
-
 
 
         function startHeartbeat() {
@@ -187,6 +204,7 @@
             updateConnectedPeers();
             conn.on("data", receiveData);
             conn.on("close", () => handlePeerDisconnect(conn.peer));
+            conn.send({ type: "chat-history", history: chatHistory });
 
             // Invia subito la lista dei peer
             propagatePeerList();
