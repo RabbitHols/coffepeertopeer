@@ -39,7 +39,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const peerID = generateReadableID();
         const peer = new Peer(peerID);
-        let connections = [];
+        let connections = new Map();
         let peerList = new Set();
         let chatHistory = [];
 
@@ -53,23 +53,39 @@
         });
 
         function connectToPeer(peerId) {
-            if (peerList.has(peerId)) return;
+            if (!peerId || peerList.has(peerId) || connections.has(peerId)) return;
+
             const conn = peer.connect(peerId);
             conn.on("open", () => {
-                connections.push(conn);
+                connections.set(peerId, conn);
                 peerList.add(peerId);
                 updateConnectedPeers();
                 conn.on("data", receiveData);
+                conn.on("close", () => removePeer(peerId));
+
                 conn.send({ type: "peer-list", peers: Array.from(peerList) });
                 conn.send({ type: "chat-history", history: chatHistory });
+
                 propagatePeerList();
+            });
+
+            conn.on("error", err => {
+                console.error("Errore connessione peer:", err);
             });
         }
 
+        function removePeer(peerId) {
+            connections.delete(peerId);
+            peerList.delete(peerId);
+            updateConnectedPeers();
+        }
+
         function propagatePeerList() {
-            connections.forEach(conn => {
-                conn.send({ type: "peer-list", peers: Array.from(peerList) });
-            });
+            setTimeout(() => {
+                connections.forEach(conn => {
+                    conn.send({ type: "peer-list", peers: Array.from(peerList) });
+                });
+            }, 500);
         }
 
         function updateConnectedPeers() {
@@ -118,20 +134,27 @@
                         connectToPeer(peerId);
                     }
                 });
-                propagatePeerList();
             }
         }
 
         peer.on("connection", conn => {
-            connections.push(conn);
-            if (!peerList.has(conn.peer)) {
-                peerList.add(conn.peer);
-            }
+            if (connections.has(conn.peer)) return;
+
+            connections.set(conn.peer, conn);
+            peerList.add(conn.peer);
             updateConnectedPeers();
+
             conn.on("data", receiveData);
+            conn.on("close", () => removePeer(conn.peer));
+
             conn.send({ type: "peer-list", peers: Array.from(peerList) });
             conn.send({ type: "chat-history", history: chatHistory });
+
             propagatePeerList();
+        });
+
+        peer.on("error", err => {
+            console.error("Errore PeerJS:", err);
         });
     </script>
 </body>
