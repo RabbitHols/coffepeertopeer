@@ -38,8 +38,8 @@
         let connections = new Map();
         let peerTimestamps = new Map();
         let chatHistory = [];
-        const heartbeatInterval = 5000;
-        const disconnectThreshold = 15000;
+        const heartbeatInterval = 1000;
+        const disconnectThreshold = 2000;
 
         peer.on("open", id => {
             console.log("Peer aperto con ID:", id);
@@ -82,7 +82,7 @@
                 connections.delete(peerId);
                 peerTimestamps.delete(peerId);
                 updateConnectedPeers();
-                notifyStatusChange(`${peerId} si è disconnesso.`);
+                appendCleanMessage(`${peerId} si è disconnesso.`);
             }
         }
 
@@ -110,13 +110,18 @@
         function sendChatMessage() {
             const message = document.getElementById("chat-input").value.trim();
             if (!message) return;
-            chatHistory.push(`Tu: ${message}`);
-            appendMessage(`Tu: ${message}`);
-            broadcastData({ type: "chat", message, sender: peerID });
+
+            const timestamp = Date.now(); // Usa timestamp per identificare il messaggio
+            const msgData = { type: "chat", message, sender: peerID, timestamp };
+
+            chatHistory.push(msgData);
+            broadcastData(msgData);
+
             document.getElementById("chat-input").value = "";
         }
 
-        function appendMessage(msg) {
+
+        function appendCleanMessage(msg) {
             const chatBox = document.getElementById("chat-box");
             chatBox.innerHTML += `<p>${msg}</p>`;
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -126,17 +131,18 @@
             connections.forEach(conn => conn.send(data));
         }
 
+        const receivedMessages = new Set(); // Memorizza i messaggi ricevuti per evitare duplicati
+
         function receiveData(data) {
             if (data.type === "chat") {
-                // Evita di mostrare due volte il messaggio se il mittente è lo stesso
-                if (data.sender !== peerID) {
-                    chatHistory.push(`Peer ${data.sender}: ${data.message}`);
-                    appendMessage(`Peer ${data.sender}: ${data.message}`);
-                }
+                const messageHash = `${data.sender}-${data.timestamp}`;
 
-                // Propaga il messaggio solo se non è stato inviato da questo peer
-                if (data.sender !== peerID) {
-                    broadcastData(data);
+                // Evita di processare il messaggio se già ricevuto
+                if (!receivedMessages.has(messageHash)) {
+                    receivedMessages.add(messageHash);
+                    chatHistory.push(data);
+                    appendMessage(data);
+                    broadcastData(data); // Propaga il messaggio ad altri peer solo se non duplicato
                 }
             } else if (data.type === "peer-list") {
                 data.peers.forEach(peerId => {
@@ -152,6 +158,7 @@
         }
 
 
+
         function startHeartbeat() {
             setInterval(() => {
                 broadcastData({ type: "heartbeat", peerId: peerID });
@@ -165,9 +172,13 @@
             }, heartbeatInterval);
         }
 
-        function notifyStatusChange(message) {
-            appendMessage(`🔔 ${message}`);
+        function appendMessage(data) {
+            const chatBox = document.getElementById("chat-box");
+            const timestamp = new Date(data.timestamp).toLocaleTimeString();
+            chatBox.innerHTML += `<p>[${timestamp}] <strong>${data.sender}:</strong> ${data.message}</p>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
+
 
         peer.on("connection", conn => {
             console.log(`Nuova connessione da ${conn.peer}`);
