@@ -4,43 +4,15 @@
 <head>
     <title>P2P Polling con Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-
-<head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gray-100 text-gray-800">
-    <div class="container mx-auto p-6 max-w-2xl">
-        <h2 class="text-2xl font-semibold text-center mb-4">Coffè Break ? ☕</h2>
-
-        <div class="bg-white p-4 rounded-lg shadow-md">
-            <h3 class="text-lg font-medium">Il tuo Peer ID: <span id="my-peer-id" class="font-bold text-blue-600">---</span></h3>
-            <h3 class="text-lg font-medium">Connesso a: <span id="connected-peers" class="text-gray-600">---</span></h3>
-            <h3 class="text-lg font-medium">Peer Connessi: <span id="peer-count" class="font-bold">0</span></h3>
-
-            <div class="mt-4 flex gap-2">
-                <input type="text" id="peer-id-input" class="flex-1 border p-2 rounded-lg" placeholder="Inserisci ID peer">
-                <button onclick="connectToPeerButton()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                    Connetti
-                </button>
-            </div>
-
-            <p class="mt-4 text-sm text-gray-700">
-                Condividi il link:
-                <input type="text" id="share-link" class="border p-2 w-full rounded-lg text-gray-600" readonly>
-            </p>
-        </div>
-
-        <h3 class="mt-6 text-lg font-medium">Lista dei Peer Scoperti:</h3>
-        <ul id="discovered-peers" class="bg-white p-4 rounded-lg shadow-md mt-2"></ul>
-
-        <h3 class="mt-6 text-lg font-medium">Chat</h3>
-        <div class="bg-white p-4 rounded-lg shadow-md mt-2">
-            <div id="chat-box" class="border border-gray-300 h-48 overflow-y-auto p-3 rounded-lg bg-gray-50 text-gray-700"></div>
+    <div class="container mx-auto p-6 max-w-4xl flex flex-col h-screen">
+        <!-- Chat principale -->
+        <div class="flex-1 bg-white p-6 rounded-lg shadow-md flex flex-col">
+            <h2 class="text-2xl font-semibold text-center mb-4">💬 Chat P2P</h2>
+            <div id="chat-box" class="border border-gray-300 flex-1 overflow-y-auto p-3 rounded-lg bg-gray-50 text-gray-700"></div>
             <div class="flex mt-4 gap-2">
                 <input type="text" id="chat-input" class="flex-1 border p-2 rounded-lg" placeholder="Scrivi un messaggio...">
                 <button onclick="sendChatMessage()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
@@ -48,18 +20,43 @@
                 </button>
             </div>
         </div>
+
+        <!-- Informazioni laterali -->
+        <div class="grid grid-cols-2 gap-4 mt-6">
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h3 class="text-lg font-medium">🔗 Connessione</h3>
+                <p>Il tuo Peer ID: <span id="my-peer-id" class="font-bold text-blue-600">---</span></p>
+                <p>Connesso a: <span id="connected-peers" class="text-gray-600">---</span></p> <!-- ✅ Fix aggiunto -->
+                <p>Peer Connessi: <span id="peer-count" class="font-bold">0</span></p>
+                <div class="mt-4 flex gap-2">
+                    <input type="text" id="peer-id-input" class="flex-1 border p-2 rounded-lg" placeholder="ID Peer">
+                    <button onclick="connectToPeerButton()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Connetti
+                    </button>
+                </div>
+                <p class="mt-4 text-sm text-gray-700">
+                    Condividi il link:
+                    <input type="text" id="share-link" class="border p-2 w-full rounded-lg text-gray-600" readonly>
+                </p>
+            </div>
+            
+
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h3 class="text-lg font-medium">📡 Peer Connessi in Chat</h3>
+                <ul id="discovered-peers" class="text-gray-700 list-disc pl-4"></ul>
+            </div>
+        </div>
+
+        <!-- Descrizione funzionamento -->
         <div class="bg-white p-6 rounded-lg shadow-md mt-6">
             <h2 class="text-xl font-semibold mb-4">🔗 Chat Peer-to-Peer: Come Funziona</h2>
             <p class="text-gray-700">
                 Questa chat utilizza un'architettura <strong>peer-to-peer</strong>, dove gli utenti si connettono direttamente tra loro senza un server centrale.  
                 Ogni peer ottiene un <strong>ID univoco</strong> e può scambiare messaggi con altri peer attivi.  
                 Il sistema aggiorna automaticamente le connessioni e propaga i messaggi tra tutti i partecipanti.  
-                Gli utenti possono scoprire nuovi peer condividendo il proprio ID.
+                Gli utenti possono scoprire nuovi peer condividendo il proprio ID o interrogando un tracker pubblico.  
             </p>
         </div>
-        
-        
-        
     </div>
 
     <script>
