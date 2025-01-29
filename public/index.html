@@ -27,9 +27,11 @@
 
     <script>
         function generateReadableID() {
-            const adjectives = ["Fast", "Happy", "Crazy", "Sleepy", "Cool", "Funky", "Lucky", "Clever"];
-            const animals = ["Tiger", "Fox", "Panda", "Lion", "Elephant", "Owl", "Zebra", "Bear"];
-            return `${adjectives[Math.floor(Math.random() * adjectives.length)]}-${animals[Math.floor(Math.random() * animals.length)]}`;
+            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            // Generate a random year from 1900 to 2000
+            let randomYear = Math.floor(Math.random() * (2000 - 1900 + 1)) + 1900;
+
+            return `${randomYear}`;
         }
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -127,9 +129,10 @@
 
         function appendCleanMessage(msg) {
             const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML += `<p>${msg}</p>`;
+            chatBox.innerHTML += `<p style="color: gray;"><em>${msg}</em></p>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
+
 
         function broadcastData(data) {
             connections.forEach(conn => conn.send(data));
@@ -148,8 +151,7 @@
                     broadcastData(data);
                 }
             } else if (data.type === "chat-history") {
-                // Load past messages for a newly connected peer
-                console.log(`Ricevuta cronologia chat da ${data.sender}`);
+                console.log(`📜 Ricevuta cronologia chat da ${data.sender}`);
                 data.history.forEach(msg => {
                     const messageHash = `${msg.sender}-${msg.timestamp}`;
                     if (!receivedMessages.has(messageHash)) {
@@ -159,9 +161,20 @@
                     }
                 });
             } else if (data.type === "request-chat-history") {
-                // Send chat history back to the requesting peer
-                console.log(`Inviando cronologia chat a ${data.sender}`);
+                console.log(`📤 Inviando cronologia chat a ${data.sender}`);
                 connections.get(data.sender)?.send({ type: "chat-history", history: chatHistory, sender: peerID });
+            } else if (data.type === "new-peer-connected") {
+                console.log(`✅ Peer connesso: ${data.peerId}`);
+                const messageHash = `connection-${data.peerId}`;
+
+                if (!receivedMessages.has(messageHash)) {
+                    receivedMessages.add(messageHash);
+                    chatHistory.push(data);
+                    appendMessage(data);
+
+                    // Ensure the event propagates correctly
+                    broadcastData(data);
+                }
             } else if (data.type === "peer-list") {
                 data.peers.forEach(peerId => {
                     if (!connections.has(peerId) && peerId !== peerID) {
@@ -192,23 +205,48 @@
         function appendMessage(data) {
             const chatBox = document.getElementById("chat-box");
             const timestamp = new Date(data.timestamp).toLocaleTimeString();
-            chatBox.innerHTML += `<p>[${timestamp}] <strong>${data.sender}:</strong> ${data.message}</p>`;
+
+            if (data.type === "new-peer-connected") {
+                // Show system message for new peer connection
+                // chatBox.innerHTML += `<p style="color: gray;"><em>🔗 ${data.peerId} si è unito alla chat.</em></p>`;
+            } else {
+                // Regular chat message
+                chatBox.innerHTML += `<p>[${timestamp}] <strong>${data.sender}:</strong> ${data.message}</p>`;
+            }
+
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
 
+
+
         peer.on("connection", conn => {
-            console.log(`Nuova connessione da ${conn.peer}`);
+            console.log(`🔗 Nuova connessione da ${conn.peer}`);
             connections.set(conn.peer, conn);
             peerTimestamps.set(conn.peer, Date.now());
             updateConnectedPeers();
+
             conn.on("data", receiveData);
             conn.on("close", () => handlePeerDisconnect(conn.peer));
-            conn.send({ type: "chat-history", history: chatHistory });
 
-            // Invia subito la lista dei peer
-            propagatePeerList();
+            // Send chat history to the newly connected peer
+            conn.send({ type: "chat-history", history: chatHistory, sender: peerID });
+
+            // Notify the new peer of all previously connected peers
+            connections.forEach((existingConn, existingPeerId) => {
+                if (existingPeerId !== conn.peer) {
+                    conn.send({ type: "new-peer-connected", peerId: existingPeerId, sender: peerID, timestamp: Date.now() });
+                }
+            });
+
+            // Notify all existing peers about the new connection
+            const connectionMessage = { type: "new-peer-connected", peerId: conn.peer, sender: peerID, timestamp: Date.now() };
+            chatHistory.push(connectionMessage); // Store in chat history
+            broadcastData(connectionMessage); // Send to all peers immediately
         });
+
+
+
     </script>
 </body>
 
