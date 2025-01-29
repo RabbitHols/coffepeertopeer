@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <title>P2P Polling con Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+</head>
+
+<body>
+    <h2>Coffè Break ? ☕</h2>
+
+    <input type="text" id="new-time" placeholder="Proponi un orario (es. 10:30)">
+    <button onclick="addNewTime()">Proponi</button>
+
+    <h3>Orari proposti:</h3>
+    <ul id="votes-list"></ul>
+
+    <h3>Il tuo Peer ID: <span id="my-peer-id">---</span></h3>
+    <h3>Connesso a: <span id="connected-peers">---</span></h3>
+    <h3>Peer Connessi: <span id="peer-count">0</span></h3>
+
+    <input type="text" id="peer-id-input" placeholder="Inserisci ID peer">
+    <button onclick="connectToPeer()">Connetti</button>
+    <p>Condividi il link: <input type="text" id="share-link" readonly></p>
+
+    <h3>Lista dei Peer Scoperti:</h3>
+    <ul id="discovered-peers"></ul>
+
+    <h3>Chat</h3>
+    <div id="chat-box" style="border:1px solid #ccc; width:300px; height:200px; overflow-y:auto; padding:5px;"></div>
+    <input type="text" id="chat-input" placeholder="Scrivi un messaggio...">
+    <button onclick="sendChatMessage()">Invia</button>
+
+    <h3>Log di sistema</h3>
+    <div id="log-box" style="border:1px solid #ccc; width:400px; height:200px; overflow-y:auto; padding:5px;"></div>
+
+    <script>
+        function logMessage(msg) {
+            const logBox = document.getElementById("log-box");
+            logBox.innerHTML += `<p>${new Date().toLocaleTimeString()} - ${msg}</p>`;
+            logBox.scrollTop = logBox.scrollHeight;
+            console.log(msg);
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const peerID = `Peer-${Math.floor(Math.random() * 1000)}`;
+        const peer = new Peer(peerID);
+        let connections = new Map();
+        let peerList = new Set();
+        let chatHistory = [];
+
+        peer.on("open", id => {
+            document.getElementById("my-peer-id").innerText = id;
+            document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
+            logMessage(`Peer creato con ID: ${id}`);
+
+            const remotePeerId = urlParams.get('peer');
+            if (remotePeerId && remotePeerId !== id) {
+                setTimeout(() => connectToPeer(remotePeerId), 1000);
+            }
+        });
+
+        function connectToPeer(peerId = null) {
+            if (!peerId) {
+                peerId = document.getElementById("peer-id-input").value.trim();
+            }
+            if (!peerId || peerList.has(peerId) || connections.has(peerId)) return;
+
+            logMessage(`Tentativo di connessione a: ${peerId}`);
+            const conn = peer.connect(peerId);
+            conn.on("open", () => {
+                logMessage(`Connessione riuscita con ${peerId}`);
+                connections.set(peerId, conn);
+                peerList.add(peerId);
+                updateConnectedPeers();
+
+                conn.on("data", receiveData);
+                conn.on("close", () => {
+                    logMessage(`Peer ${peerId} disconnesso.`);
+                    removePeer(peerId);
+                });
+
+                // Invia la cronologia della chat al nuovo peer
+                conn.send({ type: "chat-history", history: chatHistory });
+            });
+            conn.on("error", err => {
+                logMessage(`Errore connessione peer: ${err.message}`);
+            });
+        }
+
+        function removePeer(peerId) {
+            connections.delete(peerId);
+            peerList.delete(peerId);
+            updateConnectedPeers();
+            logMessage(`Peer ${peerId} rimosso.`);
+        }
+
+        function updateConnectedPeers() {
+            document.getElementById("connected-peers").innerText = Array.from(peerList).join(", ") || "---";
+            document.getElementById("peer-count").innerText = peerList.size;
+        }
+
+        function sendChatMessage() {
+            const message = document.getElementById("chat-input").value.trim();
+            if (!message) return;
+            chatHistory.push(`Tu: ${message}`);
+            appendMessage(`Tu: ${message}`);
+            broadcastData({ type: "chat", message });
+            document.getElementById("chat-input").value = "";
+            logMessage(`Messaggio inviato: ${message}`);
+        }
+
+        function appendMessage(msg) {
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `<p>${msg}</p>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function broadcastData(data) {
+            connections.forEach(conn => conn.send(data));
+        }
+
+        function receiveData(data) {
+            if (data.type === "chat") {
+                chatHistory.push(`Peer: ${data.message}`);
+                appendMessage(`Peer: ${data.message}`);
+                logMessage(`Messaggio ricevuto: ${data.message}`);
+            } else if (data.type === "chat-history") {
+                data.history.forEach(msg => appendMessage(msg));
+                chatHistory = data.history;
+                logMessage("Cronologia della chat ricevuta.");
+            }
+        }
+
+        peer.on("connection", conn => {
+            if (connections.has(conn.peer)) return;
+            logMessage(`Peer ${conn.peer} si è connesso.`);
+
+            connections.set(conn.peer, conn);
+            peerList.add(conn.peer);
+            updateConnectedPeers();
+
+            conn.on("data", receiveData);
+            conn.on("close", () => removePeer(conn.peer));
+
+            // Invia la cronologia della chat al nuovo peer
+            conn.send({ type: "chat-history", history: chatHistory });
+        });
+
+        peer.on("error", err => {
+            logMessage(`Errore PeerJS: ${err.message}`);
+        });
+    </script>
+</body>
+
+</html>
