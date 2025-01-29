@@ -14,7 +14,7 @@
     <h3>Peer Connessi: <span id="peer-count">0</span></h3>
 
     <input type="text" id="peer-id-input" placeholder="Inserisci ID peer">
-    <button onclick="connectToPeer()">Connetti</button>
+    <button onclick="connectToPeerButton()">Connetti</button>
     <p>Condividi il link: <input type="text" id="share-link" readonly></p>
 
     <h3>Lista dei Peer Scoperti:</h3>
@@ -55,7 +55,13 @@
             startHeartbeat();
         });
 
+        function connectToPeerButton() {
+            const peerId = document.getElementById("peer-id-input").value.trim();
+            connectToPeer(peerId);
+        }
+        
         function connectToPeer(peerId) {
+
             if (connections.has(peerId)) return;
             console.log(`Tentativo di connessione a ${peerId}`);
             const conn = peer.connect(peerId);
