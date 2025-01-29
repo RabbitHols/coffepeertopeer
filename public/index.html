@@ -7,12 +7,6 @@
 <body>
     <h2>Coffè Break ? ☕</h2>
 
-    <input type="text" id="new-time" placeholder="Proponi un orario (es. 10:30)">
-    <button onclick="addNewTime()">Proponi</button>
-
-    <h3>Orari proposti:</h3>
-    <ul id="votes-list"></ul>
-
     <h3>Il tuo Peer ID: <span id="my-peer-id">---</span></h3>
     <h3>Connesso a: <span id="connected-peers">---</span></h3>
     <h3>Peer Connessi: <span id="peer-count">0</span></h3>
@@ -39,49 +33,74 @@
         const urlParams = new URLSearchParams(window.location.search);
         const peerID = generateReadableID();
         const peer = new Peer(peerID);
-        let connections = [];
-        let peerList = new Set();
+        let connections = new Map();  
+        let peerTimestamps = new Map();
         let chatHistory = [];
+        const heartbeatInterval = 5000;
+        const disconnectThreshold = 15000;
 
         peer.on("open", id => {
+            console.log("Peer aperto con ID:", id);
             document.getElementById("my-peer-id").innerText = id;
             document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
+
             const remotePeerId = urlParams.get('peer');
             if (remotePeerId && remotePeerId !== id) {
                 setTimeout(() => connectToPeer(remotePeerId), 1000);
             }
+            startHeartbeat();
         });
 
         function connectToPeer(peerId) {
-            if (peerList.has(peerId)) return;
+            if (connections.has(peerId)) return;
+            console.log(`Tentativo di connessione a ${peerId}`);
             const conn = peer.connect(peerId);
+
             conn.on("open", () => {
-                connections.push(conn);
-                peerList.add(peerId);
+                console.log(`Connesso a ${peerId}`);
+                connections.set(peerId, conn);
+                peerTimestamps.set(peerId, Date.now());
                 updateConnectedPeers();
                 conn.on("data", receiveData);
-                conn.send({ type: "peer-list", peers: Array.from(peerList) });
-                conn.send({ type: "chat-history", history: chatHistory });
-                propagatePeerList();
+                conn.on("close", () => handlePeerDisconnect(peerId));
+
+                // Richiedi la lista dei peer
+                conn.send({ type: "request-peer-list" });
+            });
+
+            conn.on("error", (err) => {
+                console.error(`Errore con peer ${peerId}:`, err);
+                handlePeerDisconnect(peerId);
             });
         }
 
+        function handlePeerDisconnect(peerId) {
+            if (connections.has(peerId)) {
+                console.log(`Peer ${peerId} disconnesso.`);
+                connections.delete(peerId);
+                peerTimestamps.delete(peerId);
+                updateConnectedPeers();
+                notifyStatusChange(`${peerId} si è disconnesso.`);
+            }
+        }
+
         function propagatePeerList() {
+            const peerList = Array.from(connections.keys());
             connections.forEach(conn => {
-                conn.send({ type: "peer-list", peers: Array.from(peerList) });
+                conn.send({ type: "peer-list", peers: peerList });
             });
         }
 
         function updateConnectedPeers() {
-            document.getElementById("connected-peers").innerText = Array.from(peerList).join(", ") || "---";
-            document.getElementById("peer-count").innerText = peerList.size;
+            document.getElementById("connected-peers").innerText = Array.from(connections.keys()).join(", ") || "---";
+            document.getElementById("peer-count").innerText = connections.size;
             updateDiscoveredPeers();
         }
 
         function updateDiscoveredPeers() {
             let listElement = document.getElementById("discovered-peers");
             listElement.innerHTML = "";
-            peerList.forEach(peerId => {
+            connections.forEach((_, peerId) => {
                 listElement.innerHTML += `<li>${peerId}</li>`;
             });
         }
@@ -91,7 +110,7 @@
             if (!message) return;
             chatHistory.push(`Tu: ${message}`);
             appendMessage(`Tu: ${message}`);
-            broadcastData({ type: "chat", message });
+            broadcastData({ type: "chat", message, sender: peerID });
             document.getElementById("chat-input").value = "";
         }
 
@@ -107,30 +126,51 @@
 
         function receiveData(data) {
             if (data.type === "chat") {
-                chatHistory.push(`Peer: ${data.message}`);
-                appendMessage(`Peer: ${data.message}`);
-            } else if (data.type === "chat-history") {
-                data.history.forEach(msg => appendMessage(msg));
-                chatHistory = data.history;
+                if (!chatHistory.includes(`Peer ${data.sender}: ${data.message}`)) {
+                    chatHistory.push(`Peer ${data.sender}: ${data.message}`);
+                    appendMessage(`Peer ${data.sender}: ${data.message}`);
+                    // Propaga il messaggio ad altri peer
+                    broadcastData(data);
+                }
             } else if (data.type === "peer-list") {
                 data.peers.forEach(peerId => {
-                    if (!peerList.has(peerId) && peerId !== peerID) {
+                    if (!connections.has(peerId) && peerId !== peerID) {
                         connectToPeer(peerId);
                     }
                 });
+            } else if (data.type === "request-peer-list") {
                 propagatePeerList();
+            } else if (data.type === "heartbeat") {
+                peerTimestamps.set(data.peerId, Date.now());
             }
         }
 
+        function startHeartbeat() {
+            setInterval(() => {
+                broadcastData({ type: "heartbeat", peerId: peerID });
+
+                const now = Date.now();
+                peerTimestamps.forEach((lastSeen, peerId) => {
+                    if (now - lastSeen > disconnectThreshold) {
+                        handlePeerDisconnect(peerId);
+                    }
+                });
+            }, heartbeatInterval);
+        }
+
+        function notifyStatusChange(message) {
+            appendMessage(`🔔 ${message}`);
+        }
+
         peer.on("connection", conn => {
-            connections.push(conn);
-            if (!peerList.has(conn.peer)) {
-                peerList.add(conn.peer);
-            }
+            console.log(`Nuova connessione da ${conn.peer}`);
+            connections.set(conn.peer, conn);
+            peerTimestamps.set(conn.peer, Date.now());
             updateConnectedPeers();
             conn.on("data", receiveData);
-            conn.send({ type: "peer-list", peers: Array.from(peerList) });
-            conn.send({ type: "chat-history", history: chatHistory });
+            conn.on("close", () => handlePeerDisconnect(conn.peer));
+
+            // Invia subito la lista dei peer
             propagatePeerList();
         });
     </script>
