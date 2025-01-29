@@ -1,21 +1,8 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <title>P2P Polling con Chat</title>
+    <title>P2P Polling con PeerJS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
-    <style>
-        #chat-box {
-            border: 1px solid #ccc;
-            width: 300px;
-            height: 200px;
-            overflow-y: auto;
-            padding: 5px;
-            margin-top: 10px;
-        }
-        #chat-input {
-            width: 200px;
-        }
-    </style>
 </head>
 <body>
     <h2>Coffè Break ? ☕</h2>
@@ -32,11 +19,10 @@
 
     <input type="text" id="peer-id-input" placeholder="Inserisci ID peer">
     <button onclick="connectToPeer()">Connetti</button>
+    <p>Condividi il link: <input type="text" id="share-link" readonly></p>
 
-    <h3>Chat</h3>
-    <div id="chat-box"></div>
-    <input type="text" id="chat-input" placeholder="Scrivi un messaggio...">
-    <button onclick="sendChatMessage()">Invia</button>
+    <h3>IP Pubblici dei Peer:</h3>
+    <ul id="peer-ips"></ul>
 
     <script>
         function generateReadableID() {
@@ -45,28 +31,43 @@
             return `${adjectives[Math.floor(Math.random() * adjectives.length)]}-${animals[Math.floor(Math.random() * animals.length)]}`;
         }
 
+        const urlParams = new URLSearchParams(window.location.search);
         const peerID = generateReadableID();
         const peer = new Peer(peerID);
         let connections = [];
         let votes = {};
         let peerList = [];
-        let chatHistory = [];
+        let peerIPs = {};
 
         peer.on("open", id => {
             document.getElementById("my-peer-id").innerText = id;
+            document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
+            fetchMyIP();
+            const remotePeerId = urlParams.get('peer');
+            if (remotePeerId && remotePeerId !== id) {
+                setTimeout(() => connectToPeer(remotePeerId), 1000);
+            }
         });
 
-        function connectToPeer() {
-            const peerId = document.getElementById("peer-id-input").value;
-            if (!peerId) return alert("Inserisci un ID peer!");
+        function fetchMyIP() {
+            fetch("https://api64.ipify.org?format=json")
+                .then(response => response.json())
+                .then(data => {
+                    peerIPs[peerID] = data.ip;
+                    updateIPList();
+                });
+        }
 
+        function connectToPeer(peerId) {
             const conn = peer.connect(peerId);
             conn.on("open", () => {
                 connections.push(conn);
-                peerList.push(peerId);
+                if (!peerList.includes(peerId)) {
+                    peerList.push(peerId);
+                }
                 updateConnectedPeers();
                 conn.on("data", receiveData);
-                requestChatHistory(conn);
+                conn.send({ type: "request-peer-list" });
             });
         }
 
@@ -75,46 +76,47 @@
             document.getElementById("peer-count").innerText = peerList.length;
         }
 
-        function sendChatMessage() {
-            const message = document.getElementById("chat-input").value.trim();
-            if (!message) return;
-            chatHistory.push(`Tu: ${message}`);
-            appendMessage(`Tu: ${message}`);
-            broadcastData({ type: "chat", message });
-            document.getElementById("chat-input").value = "";
+        function updateIPList() {
+            let ipListElement = document.getElementById("peer-ips");
+            ipListElement.innerHTML = "";
+            Object.keys(peerIPs).forEach(peerId => {
+                ipListElement.innerHTML += `<li>${peerId} → ${peerIPs[peerId]}</li>`;
+            });
         }
 
-        function appendMessage(msg) {
-            const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML += `<p>${msg}</p>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
+        function receiveData(data) {
+            if (data.type === "peer-list") {
+                data.data.forEach(peerId => {
+                    if (!peerList.includes(peerId) && peerId !== peerID) {
+                        connectToPeer(peerId);
+                    }
+                });
+                peerList = data.data;
+                updateConnectedPeers();
+            } else if (data.type === "votes") {
+                votes = data.data;
+                updateVotesUI();
+            } else if (data.type === "ip-list") {
+                peerIPs = data.data;
+                updateIPList();
+            } else if (data.type === "request-peer-list") {
+                broadcastData({ type: "peer-list", data: peerList });
+            }
         }
 
         function broadcastData(data) {
             connections.forEach(conn => conn.send(data));
         }
 
-        function requestChatHistory(conn) {
-            conn.send({ type: "request-chat-history" });
-        }
-
-        function receiveData(data, conn) {
-            if (data.type === "chat") {
-                chatHistory.push(`Peer: ${data.message}`);
-                appendMessage(`Peer: ${data.message}`);
-            } else if (data.type === "request-chat-history") {
-                conn.send({ type: "chat-history", history: chatHistory });
-            } else if (data.type === "chat-history") {
-                data.history.forEach(msg => appendMessage(msg));
-                chatHistory = data.history;
-            }
-        }
-
         peer.on("connection", conn => {
+            console.log("Nuovo peer connesso:", conn.peer);
             connections.push(conn);
-            peerList.push(conn.peer);
+            if (!peerList.includes(conn.peer)) {
+                peerList.push(conn.peer);
+            }
             updateConnectedPeers();
-            conn.on("data", data => receiveData(data, conn));
+            conn.on("data", receiveData);
+            broadcastData({ type: "peer-list", data: peerList });
         });
     </script>
 </body>
