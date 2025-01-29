@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <title>P2P Polling con Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
 </head>
+
 <body>
     <h2>Coffè Break ? ☕</h2>
 
@@ -33,7 +35,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const peerID = generateReadableID();
         const peer = new Peer(peerID);
-        let connections = new Map();  
+        let connections = new Map();
         let peerTimestamps = new Map();
         let chatHistory = [];
         const heartbeatInterval = 5000;
@@ -126,10 +128,14 @@
 
         function receiveData(data) {
             if (data.type === "chat") {
-                if (!chatHistory.includes(`Peer ${data.sender}: ${data.message}`)) {
+                // Evita di mostrare due volte il messaggio se il mittente è lo stesso
+                if (data.sender !== peerID) {
                     chatHistory.push(`Peer ${data.sender}: ${data.message}`);
                     appendMessage(`Peer ${data.sender}: ${data.message}`);
-                    // Propaga il messaggio ad altri peer
+                }
+
+                // Propaga il messaggio solo se non è stato inviato da questo peer
+                if (data.sender !== peerID) {
                     broadcastData(data);
                 }
             } else if (data.type === "peer-list") {
@@ -144,6 +150,7 @@
                 peerTimestamps.set(data.peerId, Date.now());
             }
         }
+
 
         function startHeartbeat() {
             setInterval(() => {
@@ -175,4 +182,5 @@
         });
     </script>
 </body>
+
 </html>
