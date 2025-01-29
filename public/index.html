@@ -39,7 +39,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const peerID = generateReadableID();
         const peer = new Peer(peerID);
-        let connections = new Map();
+        let connections = [];
         let peerList = new Set();
         let chatHistory = [];
 
@@ -53,10 +53,10 @@
         });
 
         function connectToPeer(peerId) {
-            if (!peerId || peerList.has(peerId)) return;
+            if (peerList.has(peerId)) return;
             const conn = peer.connect(peerId);
             conn.on("open", () => {
-                connections.set(peerId, conn);
+                connections.push(conn);
                 peerList.add(peerId);
                 updateConnectedPeers();
                 conn.on("data", receiveData);
@@ -123,7 +123,7 @@
         }
 
         peer.on("connection", conn => {
-            connections.set(conn.peer, conn);
+            connections.push(conn);
             if (!peerList.has(conn.peer)) {
                 peerList.add(conn.peer);
             }
