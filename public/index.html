@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <title>P2P Polling con Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
 </head>
+
 <body>
     <h2>Coffè Break ? ☕</h2>
 
@@ -30,6 +32,51 @@
     <button onclick="sendChatMessage()">Invia</button>
 
     <script>
+        const HEARTBEAT_INTERVAL = 5000; // Ogni 5 secondi
+        const DISCONNECT_TIMEOUT = 10000; // Timeout di 10 secondi
+        let lastHeartbeat = new Map(); // Mappa per tenere traccia dell'ultimo heartbeat ricevuto
+
+        function startHeartbeat() {
+            setInterval(() => {
+                broadcastData({ type: "heartbeat", sender: peerID });
+            }, HEARTBEAT_INTERVAL);
+        }
+
+        function checkPeerHealth() {
+            setInterval(() => {
+                const now = Date.now();
+                let disconnectedPeers = [];
+
+                lastHeartbeat.forEach((timestamp, peerId) => {
+                    if (now - timestamp > DISCONNECT_TIMEOUT) {
+                        disconnectedPeers.push(peerId);
+                    }
+                });
+
+                disconnectedPeers.forEach(peerId => {
+                    console.log(`Peer ${peerId} non risponde. Rimosso.`);
+                    removePeer(peerId);
+                });
+            }, HEARTBEAT_INTERVAL);
+        }
+
+        function receiveData(data) {
+            if (data.type === "heartbeat") {
+                lastHeartbeat.set(data.sender, Date.now());
+            } else if (data.type === "chat") {
+                chatHistory.push(`Peer: ${data.message}`);
+                appendMessage(`Peer: ${data.message}`);
+            } else if (data.type === "chat-history") {
+                data.history.forEach(msg => appendMessage(msg));
+                chatHistory = data.history;
+            } else if (data.type === "peer-list") {
+                data.peers.forEach(peerId => {
+                    if (!peerList.has(peerId) && peerId !== peerID) {
+                        connectToPeer(peerId);
+                    }
+                });
+            }
+        }
         function generateReadableID() {
             const adjectives = ["Fast", "Happy", "Crazy", "Sleepy", "Cool", "Funky", "Lucky", "Clever"];
             const animals = ["Tiger", "Fox", "Panda", "Lion", "Elephant", "Owl", "Zebra", "Bear"];
@@ -46,20 +93,45 @@
         peer.on("open", id => {
             document.getElementById("my-peer-id").innerText = id;
             document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
+
             const remotePeerId = urlParams.get('peer');
             if (remotePeerId && remotePeerId !== id) {
                 setTimeout(() => connectToPeer(remotePeerId), 1000);
             }
+
+            // Avvio il meccanismo di heartbeat e controllo dei peer
+            startHeartbeat();
+            checkPeerHealth();
         });
 
-        function connectToPeer(peerId) {
-            if (!peerId || peerList.has(peerId) || connections.has(peerId)) return;
+        function connectToPeer(peerId = null) {
+            if (!peerId) {
+                const inputElement = document.getElementById("peer-id-input");
+                if (!inputElement) {
+                    console.error("Elemento #peer-id-input non trovato.");
+                    return;
+                }
+                peerId = inputElement.value.trim();
+            }
+
+            if (!peerId) {
+                alert("Inserisci un Peer ID valido.");
+                return;
+            }
+
+            console.log("Tentativo di connessione a:", peerId);
+            if (peerList.has(peerId) || connections.has(peerId)) {
+                alert("Sei già connesso a questo peer.");
+                return;
+            }
 
             const conn = peer.connect(peerId);
             conn.on("open", () => {
+                console.log("Connessione riuscita con", peerId);
                 connections.set(peerId, conn);
                 peerList.add(peerId);
                 updateConnectedPeers();
+
                 conn.on("data", receiveData);
                 conn.on("close", () => removePeer(peerId));
 
@@ -71,8 +143,10 @@
 
             conn.on("error", err => {
                 console.error("Errore connessione peer:", err);
+                alert("Errore durante la connessione: " + err.message);
             });
         }
+
 
         function removePeer(peerId) {
             connections.delete(peerId);
@@ -158,4 +232,5 @@
         });
     </script>
 </body>
+
 </html>
