@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <title>P2P Polling con PeerJS</title>
+    <title>P2P Polling con Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
 </head>
 <body>
@@ -21,8 +21,10 @@
     <button onclick="connectToPeer()">Connetti</button>
     <p>Condividi il link: <input type="text" id="share-link" readonly></p>
 
-    <h3>IP Pubblici dei Peer:</h3>
-    <ul id="peer-ips"></ul>
+    <h3>Chat</h3>
+    <div id="chat-box" style="border:1px solid #ccc; width:300px; height:200px; overflow-y:auto; padding:5px;"></div>
+    <input type="text" id="chat-input" placeholder="Scrivi un messaggio...">
+    <button onclick="sendChatMessage()">Invia</button>
 
     <script>
         function generateReadableID() {
@@ -35,28 +37,17 @@
         const peerID = generateReadableID();
         const peer = new Peer(peerID);
         let connections = [];
-        let votes = {};
         let peerList = [];
-        let peerIPs = {};
+        let chatHistory = [];
 
         peer.on("open", id => {
             document.getElementById("my-peer-id").innerText = id;
             document.getElementById("share-link").value = `${window.location.origin}${window.location.pathname}?peer=${id}`;
-            fetchMyIP();
             const remotePeerId = urlParams.get('peer');
             if (remotePeerId && remotePeerId !== id) {
                 setTimeout(() => connectToPeer(remotePeerId), 1000);
             }
         });
-
-        function fetchMyIP() {
-            fetch("https://api64.ipify.org?format=json")
-                .then(response => response.json())
-                .then(data => {
-                    peerIPs[peerID] = data.ip;
-                    updateIPList();
-                });
-        }
 
         function connectToPeer(peerId) {
             const conn = peer.connect(peerId);
@@ -67,7 +58,7 @@
                 }
                 updateConnectedPeers();
                 conn.on("data", receiveData);
-                conn.send({ type: "request-peer-list" });
+                conn.send({ type: "chat-history", history: chatHistory });
             });
         }
 
@@ -76,47 +67,43 @@
             document.getElementById("peer-count").innerText = peerList.length;
         }
 
-        function updateIPList() {
-            let ipListElement = document.getElementById("peer-ips");
-            ipListElement.innerHTML = "";
-            Object.keys(peerIPs).forEach(peerId => {
-                ipListElement.innerHTML += `<li>${peerId} → ${peerIPs[peerId]}</li>`;
-            });
+        function sendChatMessage() {
+            const message = document.getElementById("chat-input").value.trim();
+            if (!message) return;
+            chatHistory.push(`Tu: ${message}`);
+            appendMessage(`Tu: ${message}`);
+            broadcastData({ type: "chat", message });
+            document.getElementById("chat-input").value = "";
         }
 
-        function receiveData(data) {
-            if (data.type === "peer-list") {
-                data.data.forEach(peerId => {
-                    if (!peerList.includes(peerId) && peerId !== peerID) {
-                        connectToPeer(peerId);
-                    }
-                });
-                peerList = data.data;
-                updateConnectedPeers();
-            } else if (data.type === "votes") {
-                votes = data.data;
-                updateVotesUI();
-            } else if (data.type === "ip-list") {
-                peerIPs = data.data;
-                updateIPList();
-            } else if (data.type === "request-peer-list") {
-                broadcastData({ type: "peer-list", data: peerList });
-            }
+        function appendMessage(msg) {
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `<p>${msg}</p>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function broadcastData(data) {
             connections.forEach(conn => conn.send(data));
         }
 
+        function receiveData(data) {
+            if (data.type === "chat") {
+                chatHistory.push(`Peer: ${data.message}`);
+                appendMessage(`Peer: ${data.message}`);
+            } else if (data.type === "chat-history") {
+                data.history.forEach(msg => appendMessage(msg));
+                chatHistory = data.history;
+            }
+        }
+
         peer.on("connection", conn => {
-            console.log("Nuovo peer connesso:", conn.peer);
             connections.push(conn);
             if (!peerList.includes(conn.peer)) {
                 peerList.push(conn.peer);
             }
             updateConnectedPeers();
             conn.on("data", receiveData);
-            broadcastData({ type: "peer-list", data: peerList });
+            conn.send({ type: "chat-history", history: chatHistory });
         });
     </script>
 </body>
